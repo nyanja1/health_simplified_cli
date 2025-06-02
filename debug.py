@@ -1,42 +1,57 @@
-from health_tracker.database import engine, Session
+```python
+from typer.testing import CliRunner
+from health_tracker.cli import app
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
 from health_tracker.models import Base, User, FoodEntry, Goal, MealPlan
-from datetime import date
+from health_tracker.database import engine
 
-#  tables
-Base.metadata.create_all(engine)
+runner = CliRunner()
 
-#   sessions
-session = Session()
+def test_cli_commands():
+    # Create user
+    result = runner.invoke(app, ["user-create", "--name", "Elvis"])
+    assert result.exit_code == 0, f"Failed to create user: {result.output}"
+    assert "User 'Elvis' created successfully" in result.output
 
-#  users
-user = User(name="Elvis")
-session.add(user)
-session.commit()
+    # List users
+    result = runner.invoke(app, ["user-list"])
+    assert result.exit_code == 0, f"Failed to list users: {result.output}"
+    assert "Name: Elvis" in result.output
 
-#  food entries
-food_entry = FoodEntry(user=user, food="Pizza", calories=500, date=date(2025, 5, 29))
-session.add(food_entry)
+    # Add food entry
+    result = runner.invoke(app, ["entry-add", "--user", "Elvis", "--food", "Pizza", "--calories", "500", "--date", "2025-05-29"])
+    assert result.exit_code == 0, f"Failed to add food entry: {result.output}"
+    assert "Food entry added: Pizza (500 calories) for Elvis on 2025-05-29" in result.output
 
-#  goals
-goal = Goal(user=user, daily_calories=2000, weekly_calories=14000)
-session.add(goal)
+    # List food entries
+    result = runner.invoke(app, ["entry-list"])
+    assert result.exit_code == 0, f"Failed to list food entries: {result.output}"
+    assert "Food: Pizza" in result.output
+    assert "Calories: 500" in result.output
 
-#  meal plan
-meal_plan = MealPlan(user=user, week_number=22, meals="Mon: Salad, Tue: Pasta")
-session.add(meal_plan)
+    # Verify data in database
+    with Session(engine) as session:
+        user = session.execute(select(User).filter_by(name="Elvis")).scalar_one()
+        assert user.name == "Elvis"
+        entry = session.execute(select(FoodEntry).filter_by(food="Pizza")).scalar_one()
+        assert entry.calories == 500
+        assert str(entry.date) == "2025-05-29"
 
-session.commit()
+    # Test invalid inputs
+    result = runner.invoke(app, ["user-create", "--name", ""])
+    assert result.exit_code == 1, f"Expected error for empty name: {result.output}"
+    assert "Error: Name must be a non-empty string" in result.output
 
-# Test properties
-print("User:", user.name)
-print("Food Entry:", food_entry.food, food_entry.calories)
-print("Goal:", goal.daily_calories, goal.weekly_calories)
-print("Meal Plan:", meal_plan.week_number, meal_plan.meals)
+    result = runner.invoke(app, ["entry-add", "--user", "Elvis", "--food", "Pizza", "--calories", "-100", "--date", "2025-05-29"])
+    assert result.exit_code == 1, f"Expected error for negative calories: {result.output}"
+    assert "Error: Calories must be a positive integer" in result.output
 
-# Test invalid inputs
-user.name = ""  # print error
-food_entry.calories = -100  #  print error
-goal.daily_calories = "invalid"  #  print error
-meal_plan.meals = ""  #  print error
+    result = runner.invoke(app, ["entry-add", "--user", "Elvis", "--food", "", "--calories", "500", "--date", "2025-05-29"])
+    assert result.exit_code == 1, f"Expected error for empty food: {result.output}"
+    assert "Error: Food must be a non-empty string" in result.output
 
-session.close()
+if __name__ == "__main__":
+    test_cli_commands()
+    print("Debug script completed successfully.")
+```
