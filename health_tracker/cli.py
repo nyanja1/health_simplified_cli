@@ -1,4 +1,4 @@
-```python
+
 import typer
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
@@ -364,4 +364,3 @@ def plan_meal(user: str, week: int, meals: str):
 
 if __name__ == "__main__":
     app()
-```

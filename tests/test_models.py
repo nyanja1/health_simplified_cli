@@ -1,4 +1,4 @@
-```python
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -88,4 +88,3 @@ def test_meal_plan_invalid_meals(session):
         s.commit()
         plan = MealPlan(user=user, week_number=1, meals="")
         assert plan.meals is None  # Validation prevents setting
-```

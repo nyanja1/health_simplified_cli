@@ -1,4 +1,4 @@
-```python
+
 from typer.testing import CliRunner
 from health_tracker.cli import app
 from sqlalchemy import create_engine, select
@@ -107,4 +107,3 @@ def test_cli_commands():
 if __name__ == "__main__":
     test_cli_commands()
     print("Debug script completed successfully.")
-```

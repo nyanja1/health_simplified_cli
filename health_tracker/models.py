@@ -1,4 +1,4 @@
-```python
+
 from sqlalchemy import Column, Integer, String, ForeignKey, Date
 from sqlalchemy.orm import relationship, declarative_base
 from datetime import date
@@ -210,5 +210,4 @@ class MealPlan(Base):
         if not isinstance(value, str) or len(value.strip()) == 0:
             print("Error: Meals must be a non-empty string")
             return
-        self._meals = value.strip()
-```
+        self._meals = value.strip(
