@@ -11,7 +11,14 @@ app = typer.Typer(name="myapp", help="Health Simplified CLI for tracking food in
 
 @app.command()
 def user_create(name: str):
-    """Create a new user with the given name."""
+    """Create a new user with the specified name.
+
+    Args:
+        name (str): The name of the user to create.
+
+    Raises:
+        typer.Exit: If the name is empty or the user already exists.
+    """
     if not isinstance(name, str) or len(name) < 1:
         typer.echo("Error: Name must be a non-empty string.")
         raise typer.Exit(code=1)
@@ -27,7 +34,7 @@ def user_create(name: str):
 
 @app.command()
 def user_list():
-    """List all users."""
+    """List all users in the database."""
     with Session() as session:
         users = session.execute(select(User)).scalars().all()
         if not users:
@@ -38,7 +45,17 @@ def user_list():
 
 @app.command()
 def entry_add(user: str, food: str, calories: int, date: str):
-    """Add a food entry for a user."""
+    """Add a food entry for a user.
+
+    Args:
+        user (str): Name of the user.
+        food (str): Name of the food item.
+        calories (int): Calorie count.
+        date (str): Date of the entry (YYYY-MM-DD).
+
+    Raises:
+        typer.Exit: If inputs are invalid or user is not found.
+    """
     if not isinstance(food, str) or len(food) < 1:
         typer.echo("Error: Food must be a non-empty string.")
         raise typer.Exit(code=1)
@@ -69,7 +86,15 @@ def entry_add(user: str, food: str, calories: int, date: str):
 
 @app.command()
 def entry_list(user: Optional[str] = None, date: Optional[str] = None):
-    """List food entries, optionally filtered by user or date."""
+    """List food entries, optionally filtered by user or date.
+
+    Args:
+        user (Optional[str]): Filter by user name.
+        date (Optional[str]): Filter by date (YYYY-MM-DD).
+
+    Raises:
+        typer.Exit: If user is not found or date is invalid.
+    """
     with Session() as session:
         query = select(FoodEntry)
         if user:
@@ -96,7 +121,17 @@ def entry_list(user: Optional[str] = None, date: Optional[str] = None):
 
 @app.command()
 def entry_update(id: int, food: Optional[str] = None, calories: Optional[int] = None, date: Optional[str] = None):
-    """Update a food entry by ID."""
+    """Update a food entry by ID.
+
+    Args:
+        id (int): ID of the food entry to update.
+        food (Optional[str]): New food name.
+        calories (Optional[int]): New calorie count.
+        date (Optional[str]): New date (YYYY-MM-DD).
+
+    Raises:
+        typer.Exit: If entry is not found or inputs are invalid.
+    """
     with Session() as session:
         entry = session.execute(select(FoodEntry).filter_by(id=id)).scalar_one_or_none()
         if not entry:
@@ -120,15 +155,20 @@ def entry_update(id: int, food: Optional[str] = None, calories: Optional[int] = 
         if food:
             entry.food = food
         if calories is not None:
-            entry.food = food
-        if calories is not None:
             entry.calories = calories
         session.commit()
         typer.echo(f"Food entry ID {id} updated successfully.")
 
 @app.command()
 def entry_delete(id: int):
-    """Delete a food entry by ID."""
+    """Delete a food entry by ID.
+
+    Args:
+        id (int): ID of the food entry to delete.
+
+    Raises:
+        typer.Exit: If entry is not found.
+    """
     with Session() as session:
         entry = session.execute(select(FoodEntry).filter_by(id=id)).scalar_one_or_none()
         if not entry:
@@ -140,7 +180,16 @@ def entry_delete(id: int):
 
 @app.command()
 def goal_set(user: str, daily_calories: int, weekly_calories: int):
-    """Set or update a user's calorie goals."""
+    """Set or update a user's calorie goals.
+
+    Args:
+        user (str): Name of the user.
+        daily_calories (int): Daily calorie goal.
+        weekly_calories (int): Weekly calorie goal.
+
+    Raises:
+        typer.Exit: If user is not found or calories are invalid.
+    """
     if not isinstance(daily_calories, int) or daily_calories <= 0:
         typer.echo("Error: Daily calories must be a positive integer.")
         raise typer.Exit(code=1)
@@ -171,7 +220,14 @@ def goal_set(user: str, daily_calories: int, weekly_calories: int):
 
 @app.command()
 def goal_list(user: Optional[str] = None):
-    """List goals, optionally filtered by user."""
+    """List goals, optionally filtered by user.
+
+    Args:
+        user (Optional[str]): Filter by user name.
+
+    Raises:
+        typer.Exit: If user is not found.
+    """
     with Session() as session:
         query = select(Goal)
         if user:
@@ -191,7 +247,16 @@ def goal_list(user: Optional[str] = None):
 
 @app.command()
 def report(user: Optional[str] = None, start_date: Optional[str] = None, end_date: Optional[str] = None):
-    """Generate a report of food entries, goals, and meal plans."""
+    """Generate a report of food entries, goals, and meal plans.
+
+    Args:
+        user (Optional[str]): Filter by user name.
+        start_date (Optional[str]): Start date (YYYY-MM-DD).
+        end_date (Optional[str]): End date (YYYY-MM-DD).
+
+    Raises:
+        typer.Exit: If user is not found or dates are invalid.
+    """
     with Session() as session:
         # Validate dates
         s_date = None
@@ -258,7 +323,16 @@ def report(user: Optional[str] = None, start_date: Optional[str] = None, end_dat
 
 @app.command()
 def plan_meal(user: str, week: int, meals: str):
-    """Create or update a meal plan for a user and week."""
+    """Create or update a meal plan for a user and week.
+
+    Args:
+        user (str): Name of the user.
+        week (int): Week number.
+        meals (str): Meal plan details.
+
+    Raises:
+        typer.Exit: If user is not found or inputs are invalid.
+    """
     if not isinstance(week, int) or week <= 0:
         typer.echo("Error: Week number must be a positive integer.")
         raise typer.Exit(code=1)
