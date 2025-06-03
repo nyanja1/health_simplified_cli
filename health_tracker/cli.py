@@ -1,10 +1,10 @@
 ```python
 import typer
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from health_tracker.database import Session
-from health_tracker.models import User, FoodEntry
-from datetime import datetime
+from health_tracker.models import User, FoodEntry, Goal, MealPlan
+from datetime import datetime, date
 from typing import Optional
 
 app = typer.Typer(name="myapp", help="Health Simplified CLI for tracking food intake and goals.")
@@ -120,6 +120,8 @@ def entry_update(id: int, food: Optional[str] = None, calories: Optional[int] = 
         if food:
             entry.food = food
         if calories is not None:
+            entry.food = food
+        if calories is not None:
             entry.calories = calories
         session.commit()
         typer.echo(f"Food entry ID {id} updated successfully.")
@@ -135,6 +137,156 @@ def entry_delete(id: int):
         session.delete(entry)
         session.commit()
         typer.echo(f"Food entry ID {id} deleted successfully.")
+
+@app.command()
+def goal_set(user: str, daily_calories: int, weekly_calories: int):
+    """Set or update a user's calorie goals."""
+    if not isinstance(daily_calories, int) or daily_calories <= 0:
+        typer.echo("Error: Daily calories must be a positive integer.")
+        raise typer.Exit(code=1)
+    if not isinstance(weekly_calories, int) or weekly_calories <= 0:
+        typer.echo("Error: Weekly calories must be a positive integer.")
+        raise typer.Exit(code=1)
+    
+    with Session() as session:
+        user_obj = session.execute(select(User).filter_by(name=user)).scalar_one_or_none()
+        if not user_obj:
+            typer.echo(f"Error: User '{user}' not found.")
+            raise typer.Exit(code=1)
+        
+        existing_goal = session.execute(select(Goal).filter_by(user_id=user_obj.id)).scalar_one_or_none()
+        if existing_goal:
+            existing_goal.daily_calories = daily_calories
+            existing_goal.weekly_calories = weekly_calories
+            typer.echo(f"Goal updated for user '{user}'.")
+        else:
+            goal = Goal(
+                user=user_obj,
+                daily_calories=daily_calories,
+                weekly_calories=weekly_calories
+            )
+            session.add(goal)
+            typer.echo(f"Goal set for user '{user}'.")
+        session.commit()
+
+@app.command()
+def goal_list(user: Optional[str] = None):
+    """List goals, optionally filtered by user."""
+    with Session() as session:
+        query = select(Goal)
+        if user:
+            user_obj = session.execute(select(User).filter_by(name=user)).scalar_one_or_none()
+            if not user_obj:
+                typer.echo(f"Error: User '{user}' not found.")
+                raise typer.Exit(code=1)
+            query = query.filter_by(user_id=user_obj.id)
+        
+        goals = session.execute(query).scalars().all()
+        if not goals:
+            typer.echo("No goals found.")
+            return
+        for goal in goals:
+            user_name = session.execute(select(User).filter_by(id=goal.user_id)).scalar_one().name
+            typer.echo(f"ID: {goal.id}, User: {user_name}, Daily Calories: {goal.daily_calories}, Weekly Calories: {goal.weekly_calories}")
+
+@app.command()
+def report(user: Optional[str] = None, start_date: Optional[str] = None, end_date: Optional[str] = None):
+    """Generate a report of food entries, goals, and meal plans."""
+    with Session() as session:
+        # Validate dates
+        s_date = None
+        e_date = None
+        if start_date:
+            try:
+                s_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+            except ValueError:
+                typer.echo("Error: Invalid start date format. Use YYYY-MM-DD.")
+                raise typer.Exit(code=1)
+        if end_date:
+            try:
+                e_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+            except ValueError:
+                typer.echo("Error: Invalid end date format. Use YYYY-MM-DD.")
+                raise typer.Exit(code=1)
+        if s_date and e_date and s_date > e_date:
+            typer.echo("Error: Start date must be before end date.")
+            raise typer.Exit(code=1)
+
+        # Filter by user
+        user_obj = None
+        if user:
+            user_obj = session.execute(select(User).filter_by(name=user)).scalar_one_or_none()
+            if not user_obj:
+                typer.echo(f"Error: User '{user}' not found.")
+                raise typer.Exit(code=1)
+
+        # Food entries
+        entry_query = select(FoodEntry)
+        if user_obj:
+            entry_query = entry_query.filter_by(user_id=user_obj.id)
+        if s_date:
+            entry_query = entry_query.filter(FoodEntry.date >= s_date)
+        if e_date:
+            entry_query = entry_query.filter(FoodEntry.date <= e_date)
+        
+        entries = session.execute(entry_query).scalars().all()
+        total_calories = sum(entry.calories for entry in entries)
+        
+        typer.echo("Report:")
+        typer.echo(f"Food Entries ({len(entries)}):")
+        for entry in entries:
+            typer.echo(f"  - ID: {entry.id}, Food: {entry.food}, Calories: {entry.calories}, Date: {entry.date}")
+        typer.echo(f"Total Calories: {total_calories}")
+
+        # Goals
+        goal_query = select(Goal)
+        if user_obj:
+            goal_query = goal_query.filter_by(user_id=user_obj.id)
+        goals = session.execute(goal_query).scalars().all()
+        typer.echo("Goals:")
+        for goal in goals:
+            typer.echo(f"  - ID: {goal.id}, Daily: {goal.daily_calories}, Weekly: {goal.weekly_calories}")
+
+        # Meal Plans
+        meal_plan_query = select(MealPlan)
+        if user_obj:
+            meal_plan_query = meal_plan_query.filter_by(user_id=user_obj.id)
+        meal_plans = session.execute(meal_plan_query).scalars().all()
+        typer.echo("Meal Plans:")
+        for plan in meal_plans:
+            typer.echo(f"  - Week: {plan.week_number}, Meals: {plan.meals}")
+
+@app.command()
+def plan_meal(user: str, week: int, meals: str):
+    """Create or update a meal plan for a user and week."""
+    if not isinstance(week, int) or week <= 0:
+        typer.echo("Error: Week number must be a positive integer.")
+        raise typer.Exit(code=1)
+    if not isinstance(meals, str) or len(meals) < 1:
+        typer.echo("Error: Meals must be a non-empty string.")
+        raise typer.Exit(code=1)
+    
+    with Session() as session:
+        user_obj = session.execute(select(User).filter_by(name=user)).scalar_one_or_none()
+        if not user_obj:
+            typer.echo(f"Error: User '{user}' not found.")
+            raise typer.Exit(code=1)
+        
+        existing_plan = session.execute(
+            select(MealPlan).filter_by(user_id=user_obj.id, week_number=week)
+        ).scalar_one_or_none()
+        if existing_plan:
+            existing_plan.meals = meals
+            typer.echo(f"Meal plan updated for user '{user}' for week {week}.")
+        else:
+            plan = MealPlan(
+                user=user_obj,
+                week_number=week,
+                meals=meals
+            )
+            session.add(plan)
+            typer.echo(f"Meal plan created for user '{user}' for week {week}.")
+        session.commit()
 
 if __name__ == "__main__":
     app()
